@@ -1,0 +1,139 @@
+---
+title: "Case study_sleep deprivation"
+author: "Wenjing"
+date: "2021/3/8"
+output: beamer_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Wenjing Wang r0818232 
+# Statistical methods for bioinformatics_Random slope model
+
+# 0. Setout
+```{r echo = TRUE，eval = TRUE}
+setwd("D:/Msc_Bioinformatics/1st_2s/Statistical Methods for Bioinformatics/Part1/Projects/Project6_Sleep deprivation/")
+getwd
+
+## Get the data
+Rea_Object <- read.table("sleep.txt",header = T,sep = "")
+
+## Attach data to the search path
+attach(Rea_Object)
+```
+
+
+# 1.	Change of reaction time for the subject over the days of sleep deprivation: Spaghetti-plot
+
+```{r echo = TRUE，eval = TRUE}
+n = length(unique(Subject))
+interaction.plot(Days,Subject,Reaction, xlab = "Days", ylab = "Reaction time",legend = F)
+lm.reg <- lm(Reaction~Days)
+lm.reg
+abline(lm.reg,col = "red",lty = 3)
+```
+
+
+# 2. Data of means per subject: Data table
+
+```{r echo = TRUE，eval = TRUE}
+## Mean
+Rea_Object.mean = tapply(Reaction, Subject, mean)
+Rea_Object.mean
+
+## Standard deviation
+Rea_Object.sd = tapply(Reaction, Subject, sd)
+Rea_Object.sd
+
+## Variance
+Rea_Object.var = tapply(Reaction, Subject, var)
+Rea_Object.var
+
+## Number:
+Rea_Object.n = table(Subject)
+Rea_Object.n
+```
+
+# 3. Changes of reaction time over subject and days: Box plots
+```{r echo = TRUE，eval = TRUE}
+par(mfrow = c(2,1)) # Separated picture
+boxplot(Reaction~Subject,xlab = "Subject",ylab = "Reaction time") ##  Changes of reaction time over subject
+boxplot(Reaction~Days,xlab = "Days",ylab = "Reaction time") ##  Changes of reaction time over Days
+```
+
+# 4. Linear regression per subject: Scatterplots
+
+```{r echo = TRUE，eval = TRUE}
+cf <- sapply(Rea_Object$Subject, function(x) coef(lm(Reaction~Days,data = subset(Rea_Object,Subject == x))))
+##  Calculate the linear regression(Reaction~Days) per subject 
+
+Sx <- reorder(Rea_Object$Subject,cf[1,]) ## Sorted by the subject index
+
+library(lattice)
+xyplot(Reaction~Days|Sx,data = Rea_Object, type = c('p','r'),auto.key = T, aspect = "xy", 
+       par.settings = list(axis.text = list(cex = 0.6), fontsize = list(text = 8, points = 10)),
+       scales = list(x = list(at=c(0,1,2,3,4,5,6,7,8,9),labels=c("0","1","2","3","4","5","6","7","8","9"))))
+## Draw the scatterplots which show the linear regression plots for each subject
+```
+
+# 5. Coefficients and R square for subjects of reaction on days: Histograms
+
+```{r echo = TRUE，eval = TRUE}
+## Calculate coefficients(intercept & slope)
+lin.reg.coef <- by(Rea_Object,Rea_Object$Subject,function(data) coef(lm(Reaction~Days,data = data)))
+lin.reg.coef1 <- unlist(lin.reg.coef)
+names(lin.reg.coef1) <- NULL
+lin.reg.coef2 = matrix(lin.reg.coef1,length(lin.reg.coef1)/2,2,byrow = TRUE)
+
+## Calculate the R squared
+lin.reg.r.squared <- by(Rea_Object,Rea_Object$Subject,function(data) summary(lm(Reaction~Days,data = data))$r.squared)
+lin.reg.r.squared1 <- as.vector(unlist(lin.reg.r.squared))
+
+## Making Histograms 
+par(mfrow = c(3,1))
+hist(lin.reg.coef2[,1],xlab = "Intercept", col = "lightblue", main = "Histogram of Subject intercept")
+hist(lin.reg.coef2[,2],xlab = "Slope", col = "lightblue", main = "Histogram of Subject Slope")
+hist(lin.reg.r.squared1,xlab = "R squared", col = "lightblue", main = "Histogram of Subject R squared")
+```
+
+# 6.	Specify a random slope of Days for each subject: Data table
+
+```{r echo = TRUE，eval = TRUE}
+library(lme4)
+library(lmerTest)
+
+## Use the code (1+Days | Subject) to specify a random intercept for each subject, and a random slope of Days for each subject.
+res <- lmer(Reaction ~ Days + (1 + Days|Subject), data = Rea_Object)
+
+## Fixed effects section of the model summary
+summary(res)
+
+## The 95% coverage interval of the slope
+confint(res,level = 0.95,method = "Wald")
+```
+
+# 7. Standardized residuals: Scatter plots
+
+```{r echo = TRUE，eval = TRUE}
+res.std <- resid(res)/sd(resid(res))
+plot(res.std, ylab = "Standardized Residuals")
+```
+
+
+# 8. Detect the outlier: Diagnostic plots
+```{r echo = TRUE，eval = TRUE}
+car::outlierTest(res)
+car::infIndexPlot(res)
+```
+
+
+# 9. The difference between the fitted and observed values: Lines and Sctterplots
+```{r echo = TRUE，eval = TRUE}
+library(ggplot2)
+ggplot(as.data.frame(res.std),aes(sample = res.std))+geom_qq()+geom_qq_line()
+```
+
+
+
